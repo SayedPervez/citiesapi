@@ -1,0 +1,34 @@
+name: CI - Build & Test
+
+on:
+  pull_request:
+    branches:
+      - developer
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    # Downloads your repository code into the runner
+    - name: Checkout source code
+      uses: actions/checkout@v4
+    
+    #Installs .NET SDK (8.x)
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    #Downloads NuGet packages
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    #Compiles the solution
+    - name: Build solution
+      run: dotnet build --no-restore
+    
+    #Runs unit tests
+    - name: Run unit tests
+      run: dotnet test --no-build
