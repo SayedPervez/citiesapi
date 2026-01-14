@@ -1,7 +1,10 @@
-name: CI - Build & Test
+name: CI + CD (DEV)
 
 on:
   pull_request:
+    branches:
+      - developer
+  push:
     branches:
       - developer
 
@@ -10,25 +13,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    
-    # Downloads your repository code into the runner
     - name: Checkout source code
       uses: actions/checkout@v4
-    
-    #Installs .NET SDK (8.x)
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-    
-    #Downloads NuGet packages
+
     - name: Restore dependencies
       run: dotnet restore
-    
-    #Compiles the solution
+
     - name: Build solution
       run: dotnet build --no-restore
-    
-    #Runs unit tests
+
     - name: Run unit tests
       run: dotnet test --no-build
+
+    - name: Publish app
+      run: dotnet publish -c Release -o publish
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app
+        path: publish
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: app
+        path: app
+
+    - name: Login to Azure (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy to Azure App Service (DEV)
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: citiesapi-dev-azure
+        package: app
