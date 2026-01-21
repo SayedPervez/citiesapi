@@ -1,34 +1,116 @@
-name: CI - Build & Test
+name: CI + CD (Multi-Env)
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - developer
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    
-    # Downloads your repository code into the runner
-    - name: Checkout source code
+    - name: Checkout source
       uses: actions/checkout@v4
-    
-    #Installs .NET SDK (8.x)
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-    
-    #Downloads NuGet packages
-    - name: Restore dependencies
+
+    - name: Restore
       run: dotnet restore
-    
-    #Compiles the solution
-    - name: Build solution
+
+    - name: Build
       run: dotnet build --no-restore
-    
-    #Runs unit tests
-    - name: Run unit tests
+
+    - name: Test
       run: dotnet test --no-build
+
+    - name: Publish
+      run: dotnet publish -c Release -o publish
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app
+        path: publish
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: app
+        path: app
+
+    - name: Azure Login (DEV)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy to DEV
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: citiesapi-dev-application
+        package: app
+
+  deploy-stage:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: stage
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: app
+        path: app
+
+    - name: Azure Login (STAGE)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy to STAGE
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: citiesapi-stage-application
+        package: app
+
+  deploy-prod:
+    needs: deploy-stage
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: app
+        path: app
+
+    - name: Azure Login (PROD)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy to PROD
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: citiesapi-prod-application
+        package: app
