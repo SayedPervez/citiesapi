@@ -64,5 +64,5 @@ jobs:
     - name: Deploy to Azure App Service (DEV)
       uses: azure/webapps-deploy@v3
       with:
-        app-name: citiesapi-dev-azure
+        app-name: citiesapi-dev-application
         package: app
