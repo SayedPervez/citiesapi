@@ -1,4 +1,4 @@
-name: CI + CD (DEV)
+name: CI + CD (Multi-Env)
 
 on:
   pull_request:
@@ -6,7 +6,8 @@ on:
       - developer
   push:
     branches:
-      - developer
+      - main
+
 permissions:
   id-token: write
   contents: read
@@ -16,53 +17,103 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: Restore
+        run: dotnet restore
 
-    - name: Build solution
-      run: dotnet build --no-restore
+      - name: Build
+        run: dotnet build --no-restore
 
-    - name: Run unit tests
-      run: dotnet test --no-build
+      - name: Test
+        run: dotnet test --no-build
 
-    - name: Publish app
-      run: dotnet publish -c Release -o publish
+      - name: Publish
+        run: dotnet publish -c Release -o publish
 
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: app
-        path: publish
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: publish
 
   deploy-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment: dev
 
     steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: app
-        path: app
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: app
 
-    - name: Login to Azure (OIDC)
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure Login (DEV)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    - name: Deploy to Azure App Service (DEV)
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: citiesapi-dev-application
-        package: app
+      - name: Deploy to DEV
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: citiesapi-dev-application
+          package: app
+
+  deploy-stage:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: stage
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: app
+
+      - name: Azure Login (STAGE)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to STAGE
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: citiesapi-stage-application
+          package: app
+
+  deploy-prod:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-stage
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: app
+
+      - name: Azure Login (PROD)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to PROD
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: citiesapi-prod-application
+          package: app
