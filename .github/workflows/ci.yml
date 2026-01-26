@@ -1,119 +1,105 @@
 name: CI + CD (Multi-Env)
-
-on:
+'on':
   pull_request:
     branches:
       - developer
   push:
     branches:
       - main
-
 permissions:
   id-token: write
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
-
+          dotnet-version: 8.0.x
       - name: Restore
         run: dotnet restore
-
       - name: Build
         run: dotnet build --no-restore
-
       - name: Test
         run: dotnet test --no-build
-
       - name: Publish
         run: dotnet publish -c Release -o publish
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app
           path: publish
-
   deploy-dev:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment: dev
-
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: app
           path: app
-
       - name: Azure Login (DEV)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
+          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
+          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
       - name: Deploy to DEV
         uses: azure/webapps-deploy@v3
         with:
           app-name: citiesapi-dev-application
           package: app
-
   deploy-stage:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy-dev
     runs-on: ubuntu-latest
     environment: stage
-
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: app
           path: app
-
       - name: Azure Login (STAGE)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
+          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
+          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
       - name: Deploy to STAGE
         uses: azure/webapps-deploy@v3
         with:
           app-name: citiesapi-stage-application
           package: app
-
   deploy-prod:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy-stage
     runs-on: ubuntu-latest
     environment: prod
-
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: app
           path: app
-
       - name: Azure Login (PROD)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to PROD
+          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
+          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
+          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
+      - name: Deploy to PROD (Staging Slot)
         uses: azure/webapps-deploy@v3
         with:
           app-name: citiesapi-prod-application
+          slot-name: staging
           package: app
+      - name: Swap Staging to Production
+        run: |
+          az webapp deployment slot swap \
+            --resource-group <YOUR_RESOURCE_GROUP> \
+            --name citiesapi-prod-application \
+            --slot staging \
+            --target-slot production
