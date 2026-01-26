@@ -1,4 +1,4 @@
-name: CI + CD (Multi-Env)
+name: CI + CD (Multi - Env)
 'on':
   pull_request:
     branches:
@@ -99,7 +99,7 @@ jobs:
       - name: Swap Staging to Production
         run: |
           az webapp deployment slot swap \
-            --resource-group <YOUR_RESOURCE_GROUP> \
+            --resource-group rg-citiesapi-prod \
             --name citiesapi-prod-application \
             --slot staging \
             --target-slot production
